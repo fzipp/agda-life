@@ -8,11 +8,14 @@ open import Data.Bool using (Bool; _∨_; if_then_else_)
 open import Data.Nat using (ℕ; suc; _+_; _<ᵇ_; _≡ᵇ_)
 open import Data.List using (List; []; _∷_; length; zipWith; upTo; sum; map)
 open import Data.Maybe using (Maybe; just; nothing; fromMaybe)
+open import Data.String using (String; intersperse)
+open import Function using (_∘_; id; _$_)
+open import IO using (run; putStrLn)
 
 ---- Utility functions ----
 
-mapWithIndex : ∀ {A B : Set} → (A → ℕ → B) → List A → List B
-mapWithIndex f xs = zipWith f xs (upTo (length xs))
+mapWithIndex : ∀ {A B : Set} → (ℕ → A → B) → List A → List B
+mapWithIndex f xs = zipWith f (upTo (length xs)) xs
 
 _element_ : ∀ {A : Set} → List A → ℕ → Maybe A
 [] element n = nothing
@@ -70,24 +73,24 @@ cellAt : Board → Pos → Cell
 cellAt board ⟨ colᵢ , rowᵢ ⟩ = fromMaybe □ ((fromMaybe [] (board element rowᵢ)) element colᵢ) 
 
 aliveCountAt : Board → Pos → ℕ
-aliveCountAt board pos = aliveCount (cellAt board pos)
+aliveCountAt board = aliveCount ∘ cellAt board
 
 neighbourCount : Board → Pos → ℕ
-neighbourCount board pos = sum (map (aliveCountAt board) (neighbourPositions pos))
+neighbourCount board pos = sum $ map (aliveCountAt board) (neighbourPositions pos)
 
 nextCell : Cell → ℕ → Cell
 nextCell ■ neighbours = if (neighbours <ᵇ 2) ∨ (3 <ᵇ neighbours) then □ else ■
 nextCell □ neighbours = if (neighbours ≡ᵇ 3) then ■ else □
 
-nextRow : Board → Row → ℕ → Row
-nextRow board row rowᵢ = mapWithIndex (λ cell colᵢ → nextCell cell (neighbourCount board ⟨ colᵢ , rowᵢ ⟩)) row
+nextRow : Board → ℕ → Row → Row
+nextRow board rowᵢ = mapWithIndex (λ colᵢ cell → nextCell cell (neighbourCount board ⟨ colᵢ , rowᵢ ⟩))
 
 nextGen : Board → Board
 nextGen board = mapWithIndex (nextRow board) board
 
 nthGen : ℕ → Board → Board
-nthGen 0 board = board
-nthGen (suc n) board = nextGen (nthGen n board)
+nthGen 0 = id
+nthGen (suc n) = nextGen ∘ nthGen n
 
 ---- "Tests" ----
 
@@ -144,3 +147,17 @@ assertBlinkerGen3 = refl
 
 gen0-ident : ∀ {b : Board} → nthGen 0 b ≡ b
 gen0-ident = refl
+
+---- Main ----
+
+showCell : Cell → String
+showCell □ = "□"
+showCell ■ = "■"
+
+showRow : Row → String
+showRow = intersperse " " ∘ map showCell
+
+showBoard : Board → String
+showBoard = intersperse "\n" ∘ map showRow
+
+main = run $ putStrLn ∘ showBoard ∘ nthGen 3 $ blinker_h
